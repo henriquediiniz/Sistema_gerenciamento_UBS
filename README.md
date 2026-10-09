@@ -28,6 +28,10 @@ A configuração padrão não exige `.env`. Para personalizar, copie `.env.examp
 
 A tela de login permite preencher as contas de demonstração com um clique. O autocadastro cria uma conta com perfil paciente. Novos profissionais são cadastrados pela coordenação.
 
+## Publicar na Vercel
+
+A Vercel precisa de um banco remoto para persistir usuários, sessões e registros. Esta versão suporta **Turso/libSQL**, mantendo o SQLite local como padrão no desenvolvimento. Configure `TURSO_DATABASE_URL` e `TURSO_AUTH_TOKEN`, inicialize os dados fictícios e faça um novo deploy conforme o [guia de publicação](docs/deploy-vercel.md). Sem banco configurado, a API informa o problema com HTTP 503.
+
 ## O que experimentar
 
 1. **Coordenação:** conheça o painel, cadastre profissionais e serviços, disponibilize vagas para amanhã.
@@ -49,7 +53,8 @@ src/app/                  Rotas, páginas servidor, HTTP e estilos
 src/components/           Interface React, formulários e telas
 src/domain/               Modelos, esquemas Zod e regras compartilhadas
 src/server/modules/       Casos de uso por módulo
-src/server/db.ts          Conexão, esquema relacional e transações
+src/server/db.ts          Adaptadores SQLite/libSQL e transações assíncronas
+src/server/schema.ts      Esquema relacional compartilhado
 src/server/security.ts    Senhas, sessões e autorização
 src/server/queries.ts     Leituras filtradas por perfil e território
 src/server/commands.ts    Despacho dos comandos para os módulos
@@ -77,7 +82,16 @@ npm run build
 npm run test:integration
 ```
 
-Os testes de domínio usam um banco em memória isolado. A integração HTTP usa um banco temporário próprio, inicia o build de produção em `127.0.0.1:3101` e encerra o processo ao terminar. Use `TEST_PORT=3102` se necessário. O banco de demonstração não é alterado por esses testes.
+Os testes de domínio usam um banco em memória isolado. A integração HTTP usa um banco temporário próprio, inicia o build de produção em `127.0.0.1:3101` e encerra o processo ao terminar. Use `TEST_PORT=3102` se necessário. Os testes descartam credenciais remotas herdadas; o banco de demonstração não é alterado.
+
+Para validar também o adaptador libSQL com um arquivo temporário (bash):
+
+```bash
+TEST_DATABASE_DRIVER=libsql npm test
+TEST_DATABASE_DRIVER=libsql npm run test:integration
+```
+
+Esses testes verificam o cliente libSQL e as regras, mas não simulam a rede ou a infraestrutura Turso/Vercel.
 
 ```bash
 npm run format:check
@@ -99,8 +113,10 @@ npm run db:backup
 
 O comando usa a API de backup online do SQLite e cria uma cópia consistente em `backups/`. **Não há agendamento diário automático** nesta versão. Para restaurar, pare a aplicação, preserve o banco atual e seus arquivos `-wal` / `-shm` em uma pasta separada e coloque a cópia escolhida em `data/ubs.sqlite`. Nunca substitua o arquivo com o servidor em execução. Teste primeiro em um caminho alternativo com `DATABASE_PATH`.
 
+Com Turso configurado, utilize os recursos de exportação e backup do provedor; o comando local recusa executar contra banco remoto.
+
 ## Limites desta entrega
 
-É um protótipo local para validação de fluxos, **não uma implantação para dados reais de pacientes**. Não inclui recuperação de senha, verificação de identidade, integrações SUS, SMS/e-mail, triagem clínica, prontuário completo, várias UBS, sincronização offline ou permissões configuráveis por usuário. Relatórios e telas usam consultas pequenas sem paginação; histórico de movimentos exibe até 200 registros e auditoria até 40. Não foi executado o ensaio de 50 usuários / p95 de 3 segundos.
+É um protótipo para validação de fluxos com dados fictícios, **não uma implantação para dados reais de pacientes**. Não inclui recuperação de senha, verificação de identidade, integrações SUS, SMS/e-mail, triagem clínica, prontuário completo, várias UBS, sincronização offline ou permissões configuráveis por usuário. Relatórios e telas usam consultas pequenas sem paginação; histórico de movimentos exibe até 200 registros e auditoria até 40. Não foi executado o ensaio de 50 usuários / p95 de 3 segundos.
 
 HTTPS, backup diário automatizado, teste operacional de restauração, política de acesso e revisão de proteção de dados precisam ser tratados antes de qualquer uso real. Para HTTPS, configure `APP_ORIGIN` e `COOKIE_SECURE=true` atrás de um proxy. A aplicação inicia apenas na interface local por padrão.
