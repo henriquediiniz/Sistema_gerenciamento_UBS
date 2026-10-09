@@ -5,14 +5,21 @@ import { join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { setTimeout as pause } from 'node:timers/promises';
 const folder = mkdtempSync(join(tmpdir(), 'ubs-integration-'));
+delete process.env.TURSO_DATABASE_URL;
+delete process.env.TURSO_AUTH_TOKEN;
+delete process.env.VERCEL;
 process.env.DATABASE_PATH = join(folder, 'test.sqlite');
+if (process.env.TEST_DATABASE_DRIVER === 'libsql')
+  process.env.TURSO_DATABASE_URL = `file:${process.env.DATABASE_PATH}`;
 const { seed } = await import('../src/server/seed');
-const { database } = await import('../src/server/db');
+const { closeDatabase } = await import('../src/server/db');
 const { dayAfter } = await import('../src/domain/rules');
-seed();
-database().close();
+await seed();
+closeDatabase();
 const port = process.env.TEST_PORT || '3101';
 const origin = `http://127.0.0.1:${port}`;
+process.env.APP_ORIGIN = origin;
+process.env.COOKIE_SECURE = 'false';
 const server = spawn(
   process.execPath,
   ['node_modules/next/dist/bin/next', 'start', '--hostname', '127.0.0.1', '--port', port],
@@ -95,6 +102,29 @@ try {
     assert(!html.includes('Only plain objects'), 'Serialização de registros inválida.');
   }
   const patient = await signin('paciente@ubs.demo');
+  const registration = {
+    name: 'Paciente Autocadastro HTTP',
+    document: 'HTTP-REGISTER-01',
+    birth_date: '2000-01-01',
+    phone: '',
+    neighborhood: 'Centro',
+    area: 'Área 01',
+    email: 'autocadastro@ubs.demo',
+    password: 'Demo@12345',
+  };
+  const registered = await post('register', registration);
+  assert.equal(registered.status, 200, JSON.stringify(registered.body));
+  assert(registered.cookie?.includes('HttpOnly'));
+  const newCookie = registered.cookie!.split(';')[0];
+  const newAccount = await snap(newCookie);
+  assert.equal(newAccount.patients.length, 1);
+  assert.equal(newAccount.patients[0].document, registration.document);
+  assert.equal((await post('register', registration)).status, 409);
+  assert.equal((await post('logout', {}, newCookie)).status, 200);
+  assert.equal(
+    (await snap(await signin(registration.email))).patients[0].document,
+    registration.document,
+  );
   const own = await snap(patient);
   assert.equal(own.patients.length, 1);
   assert.equal(own.patients[0].id, 'p-1');
@@ -208,7 +238,7 @@ try {
     401,
   );
   console.log(
-    'Integração HTTP aprovada: 8 telas, autenticação, origem, 4 perfis, persistência, capacidade concorrente, idempotência e saldo de estoque.',
+    'Integração HTTP aprovada: 8 telas, login, autocadastro e novo login, origem, 4 perfis, persistência, capacidade concorrente, idempotência e saldo de estoque.',
   );
 } finally {
   server.kill('SIGTERM');

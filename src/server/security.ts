@@ -15,25 +15,26 @@ export function verifyPassword(password: string, hash: string) {
 }
 const digest = (token: string) => createHash('sha256').update(token).digest('hex');
 const dummyHash = hashPassword('constant-time-invalid-account');
-export function login(email: string, password: string) {
+export async function login(email: string, password: string) {
   const normalized = email.trim().toLowerCase();
-  const attempt = one<{ attempts: number; window_start: number }>(
-    'SELECT * FROM login_attempts WHERE email=?',
-    normalized,
-  );
+  const attempt = await one<{
+    attempts: number;
+    window_start: number;
+  }>('SELECT * FROM login_attempts WHERE email=?', normalized);
   const time = Date.now();
   ensure(
     !attempt || time - attempt.window_start > 900000 || attempt.attempts < 10,
     'Muitas tentativas. Aguarde 15 minutos e tente novamente.',
     429,
   );
-  const user = one<User & { password_hash: string }>(
-    'SELECT * FROM users WHERE email=?',
-    normalized,
-  );
+  const user = await one<
+    User & {
+      password_hash: string;
+    }
+  >('SELECT * FROM users WHERE email=?', normalized);
   const valid = verifyPassword(password, user?.password_hash || dummyHash);
   if (!user || !valid) {
-    run(
+    await run(
       'INSERT INTO login_attempts VALUES(?,1,?) ON CONFLICT(email) DO UPDATE SET attempts=CASE WHEN window_start < ? THEN 1 ELSE attempts+1 END, window_start=CASE WHEN window_start < ? THEN excluded.window_start ELSE window_start END',
       normalized,
       time,
@@ -42,13 +43,13 @@ export function login(email: string, password: string) {
     );
     ensure(false, 'E-mail ou senha incorretos.', 401);
   }
-  run('DELETE FROM login_attempts WHERE email=?', normalized);
-  return createSession(user.id);
+  await run('DELETE FROM login_attempts WHERE email=?', normalized);
+  return await createSession(user.id);
 }
-export function createSession(userId: string) {
+export async function createSession(userId: string) {
   const token = randomBytes(32).toString('hex');
-  run('DELETE FROM sessions WHERE expires_at < ?', now());
-  run(
+  await run('DELETE FROM sessions WHERE expires_at < ?', now());
+  await run(
     'INSERT INTO sessions VALUES(?,?,?)',
     digest(token),
     userId,
@@ -56,9 +57,9 @@ export function createSession(userId: string) {
   );
   return token;
 }
-export function sessionUser(token?: string): User | undefined {
+export async function sessionUser(token?: string): Promise<User | undefined> {
   if (!token) return;
-  return one<User>(
+  return await one<User>(
     `SELECT ${publicUserColumns
       .split(',')
       .map((c) => `u.${c}`)
@@ -69,17 +70,17 @@ export function sessionUser(token?: string): User | undefined {
     now(),
   );
 }
-export function logout(token?: string) {
-  if (token) run('DELETE FROM sessions WHERE token_hash=?', digest(token));
+export async function logout(token?: string) {
+  if (token) await run('DELETE FROM sessions WHERE token_hash=?', digest(token));
 }
 export function authorize(user: User, allowed: readonly Role[]) {
   ensure(allowed.includes(user.role), 'Seu perfil não tem permissão para esta operação.', 403);
 }
-export function visiblePatient(user: User, patientId: string) {
-  const patient = one<{ id: string; area: string }>(
-    'SELECT id,area FROM patients WHERE id=?',
-    patientId,
-  );
+export async function visiblePatient(user: User, patientId: string) {
+  const patient = await one<{
+    id: string;
+    area: string;
+  }>('SELECT id,area FROM patients WHERE id=?', patientId);
   ensure(patient, 'Paciente não encontrado.', 404);
   if (user.role === 'PACIENTE')
     ensure(user.patient_id === patientId, 'Acesso restrito ao próprio cadastro.', 403);

@@ -1,78 +1,165 @@
-import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
+import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
-const globalDb = globalThis as unknown as { ubsDb?: DatabaseSync };
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { createClient, type Client } from '@libsql/client';
+import { databaseConfig } from './database-config';
+import { schema } from './schema';
+type Value = string | number | bigint | null;
+type Row = Record<string, unknown>;
+type Executor = (sql: string, args: Value[]) => Promise<Row[]>;
+// Shared across Next hot reloads. AsyncLocalStorage isolates simultaneous requests:
+// one request can never execute queries on another request's transaction.
+const state = globalThis as unknown as {
+  ubsDb?: DatabaseSync;
+  ubsRemote?: Client;
+  ubsRemoteReady?: Promise<void>;
+  ubsTransactionContext?: AsyncLocalStorage<Executor>;
+  ubsLocalQueue?: Promise<unknown>;
+};
+const context = (state.ubsTransactionContext ??= new AsyncLocalStorage<Executor>());
 export const databasePath =
   process.env.DATABASE_PATH === ':memory:'
     ? ':memory:'
     : resolve(/* turbopackIgnore: true */ process.env.DATABASE_PATH || 'data/ubs.sqlite');
-function connect() {
-  if (databasePath !== ':memory:') mkdirSync(dirname(databasePath), { recursive: true });
-  const db = new DatabaseSync(databasePath);
-  db.exec('PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;');
-  db.exec(`
- CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL);
- CREATE TABLE IF NOT EXISTS patients (id TEXT PRIMARY KEY, name TEXT NOT NULL, document TEXT NOT NULL UNIQUE, birth_date TEXT NOT NULL, phone TEXT NOT NULL DEFAULT '', neighborhood TEXT NOT NULL, area TEXT NOT NULL, acs_id TEXT REFERENCES users(id), conditions TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL);
- CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE COLLATE NOCASE, password_hash TEXT NOT NULL, role TEXT NOT NULL CHECK(role IN ('COORDENACAO','RECEPCAO','PROFISSIONAL','ESTOQUE','ACS','PACIENTE')), area TEXT NOT NULL DEFAULT '', patient_id TEXT UNIQUE REFERENCES patients(id));
- CREATE TABLE IF NOT EXISTS sessions (token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id), expires_at TEXT NOT NULL);
- CREATE TABLE IF NOT EXISTS login_attempts (email TEXT PRIMARY KEY, attempts INTEGER NOT NULL, window_start INTEGER NOT NULL);
- CREATE TABLE IF NOT EXISTS services (id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE);
- CREATE TABLE IF NOT EXISTS slots (id TEXT PRIMARY KEY, service_id TEXT NOT NULL REFERENCES services(id), professional_id TEXT NOT NULL REFERENCES users(id), date TEXT NOT NULL, period TEXT NOT NULL, starts_at TEXT NOT NULL, capacity INTEGER NOT NULL CHECK(capacity > 0), UNIQUE(professional_id,date,period));
- CREATE TABLE IF NOT EXISTS tickets (number INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT NOT NULL UNIQUE, patient_id TEXT NOT NULL REFERENCES patients(id), slot_id TEXT NOT NULL REFERENCES slots(id), status TEXT NOT NULL CHECK(status IN ('RESERVADA','AGUARDANDO','EM_ATENDIMENTO','CONCLUIDA','AUSENTE','CANCELADA')), priority INTEGER NOT NULL DEFAULT 0 CHECK(priority IN (0,1)), checked_in_at TEXT, created_at TEXT NOT NULL);
- CREATE INDEX IF NOT EXISTS tickets_slot ON tickets(slot_id,status);
- CREATE TABLE IF NOT EXISTS items (id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, kind TEXT NOT NULL CHECK(kind IN ('VACINA','MEDICAMENTO')), unit TEXT NOT NULL, minimum INTEGER NOT NULL CHECK(minimum >= 0), alert_days INTEGER NOT NULL CHECK(alert_days >= 0));
- CREATE TABLE IF NOT EXISTS lots (id TEXT PRIMARY KEY, item_id TEXT NOT NULL REFERENCES items(id), code TEXT NOT NULL, expires_at TEXT NOT NULL, quantity INTEGER NOT NULL CHECK(quantity >= 0), blocked INTEGER NOT NULL DEFAULT 0 CHECK(blocked IN (0,1)), UNIQUE(item_id,code));
- CREATE TABLE IF NOT EXISTS movements (id TEXT PRIMARY KEY, lot_id TEXT NOT NULL REFERENCES lots(id), delta INTEGER NOT NULL, reason TEXT NOT NULL, user_id TEXT NOT NULL REFERENCES users(id), created_at TEXT NOT NULL);
- CREATE TABLE IF NOT EXISTS campaigns (id TEXT PRIMARY KEY, name TEXT NOT NULL, item_id TEXT NOT NULL REFERENCES items(id), starts_at TEXT NOT NULL, ends_at TEXT NOT NULL, audience TEXT NOT NULL, required_doses INTEGER NOT NULL CHECK(required_doses > 0));
- CREATE TABLE IF NOT EXISTS campaign_targets (campaign_id TEXT NOT NULL REFERENCES campaigns(id), neighborhood TEXT NOT NULL, population INTEGER NOT NULL CHECK(population >= 0), PRIMARY KEY(campaign_id,neighborhood));
- CREATE TABLE IF NOT EXISTS doses (id TEXT PRIMARY KEY, patient_id TEXT NOT NULL REFERENCES patients(id), lot_id TEXT NOT NULL REFERENCES lots(id), campaign_id TEXT REFERENCES campaigns(id), dose INTEGER NOT NULL CHECK(dose > 0), applied_at TEXT NOT NULL, user_id TEXT NOT NULL REFERENCES users(id), idempotency_key TEXT NOT NULL UNIQUE);
- CREATE UNIQUE INDEX IF NOT EXISTS campaign_dose_unique ON doses(patient_id,campaign_id,dose) WHERE campaign_id IS NOT NULL;
- CREATE TABLE IF NOT EXISTS pending_doses (id TEXT PRIMARY KEY, patient_id TEXT NOT NULL REFERENCES patients(id), item_id TEXT NOT NULL REFERENCES items(id), due_date TEXT NOT NULL, note TEXT NOT NULL, done INTEGER NOT NULL DEFAULT 0);
- CREATE TABLE IF NOT EXISTS visits (id TEXT PRIMARY KEY, patient_id TEXT NOT NULL REFERENCES patients(id), acs_id TEXT NOT NULL REFERENCES users(id), date TEXT NOT NULL, status TEXT NOT NULL CHECK(status IN ('PLANEJADA','REALIZADA','SEM_CONTATO')), result TEXT NOT NULL DEFAULT '', pending TEXT NOT NULL DEFAULT '');
- CREATE TABLE IF NOT EXISTS audit (id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id), action TEXT NOT NULL, entity_id TEXT NOT NULL, details TEXT NOT NULL, created_at TEXT NOT NULL);
- INSERT OR IGNORE INTO schema_migrations VALUES(1,datetime('now'));
- `);
-  return db;
-}
 export function database() {
-  return (globalDb.ubsDb ??= connect());
-}
-// node:sqlite returns null-prototype records. Normalize them at the persistence
-// boundary so they can cross the React Server Component serialization boundary.
-export function all<T>(sql: string, ...params: SQLInputValue[]) {
-  return database()
-    .prepare(sql)
-    .all(...params)
-    .map((row) => ({ ...row })) as unknown as T[];
-}
-export function one<T>(sql: string, ...params: SQLInputValue[]) {
-  const row = database()
-    .prepare(sql)
-    .get(...params);
-  return row ? ({ ...row } as unknown as T) : undefined;
-}
-export function run(sql: string, ...params: SQLInputValue[]) {
-  return database()
-    .prepare(sql)
-    .run(...params);
-}
-export function transaction<T>(work: () => T): T {
-  const db = database();
-  db.exec('BEGIN IMMEDIATE');
-  try {
-    const result = work();
-    db.exec('COMMIT');
-    return result;
-  } catch (error) {
-    db.exec('ROLLBACK');
-    throw error;
+  const config = databaseConfig();
+  if (config.kind !== 'local')
+    throw new Error('Acesso a arquivo local indisponível quando o banco remoto está configurado.');
+  if (!state.ubsDb) {
+    if (databasePath !== ':memory:') mkdirSync(dirname(databasePath), { recursive: true });
+    const db = new DatabaseSync(databasePath);
+    db.exec('PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;');
+    db.exec(schema);
+    state.ubsDb = db;
   }
+  return state.ubsDb;
+}
+async function remote() {
+  const config = databaseConfig();
+  if (config.kind !== 'libsql') throw new Error('Banco remoto não configurado.');
+  const client = (state.ubsRemote ??= createClient({
+    url: config.url,
+    authToken: config.authToken,
+    intMode: 'number',
+  }));
+  if (!state.ubsRemoteReady) {
+    state.ubsRemoteReady = client
+      .batch(
+        schema
+          .split(';')
+          .map((sql) => sql.trim())
+          .filter(Boolean),
+        'write',
+      )
+      .then(() => {})
+      .catch((error) => {
+        state.ubsRemoteReady = undefined;
+        throw error;
+      });
+  }
+  await state.ubsRemoteReady;
+  return client;
+}
+async function localExclusive<T>(work: () => Promise<T>): Promise<T> {
+  const previous = state.ubsLocalQueue ?? Promise.resolve();
+  let release!: () => void;
+  state.ubsLocalQueue = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await previous;
+  try {
+    return await work();
+  } finally {
+    release();
+  }
+}
+const nativeExecute: Executor = async (sql, args) =>
+  database()
+    .prepare(sql)
+    .all(...args)
+    .map((row) => ({ ...row }));
+async function execute(sql: string, args: Value[]): Promise<Row[]> {
+  const active = context.getStore();
+  if (active) return active(sql, args);
+  if (databaseConfig().kind === 'local') return localExclusive(() => nativeExecute(sql, args));
+  const query = async () => {
+    const result = await (await remote()).execute({ sql, args });
+    return result.rows.map((row) => ({ ...row }));
+  };
+  return isLibsqlFile() ? localExclusive(query) : query();
+}
+export async function all<T>(sql: string, ...params: Value[]): Promise<T[]> {
+  return (await execute(sql, params)) as T[];
+}
+export async function one<T>(sql: string, ...params: Value[]): Promise<T | undefined> {
+  return (await all<T>(sql, ...params))[0];
+}
+export async function run(sql: string, ...params: Value[]) {
+  await execute(sql, params);
+}
+export async function transaction<T>(work: () => Promise<T>): Promise<T> {
+  if (context.getStore()) throw new Error('Transações aninhadas não são suportadas.');
+  if (databaseConfig().kind === 'local')
+    return localExclusive(async () => {
+      const db = database();
+      db.exec('BEGIN IMMEDIATE');
+      try {
+        const result = await context.run(nativeExecute, work);
+        db.exec('COMMIT');
+        return result;
+      } catch (error) {
+        db.exec('ROLLBACK');
+        throw error;
+      }
+    });
+  const executeTransaction = async () => {
+    const tx = await (await remote()).transaction('write');
+    try {
+      const result = await context.run(
+        async (sql, args) => (await tx.execute({ sql, args })).rows.map((row) => ({ ...row })),
+        work,
+      );
+      await tx.commit();
+      return result;
+    } catch (error) {
+      if (!tx.closed) await tx.rollback();
+      throw error;
+    } finally {
+      tx.close();
+    }
+  };
+  return isLibsqlFile() ? localExclusive(executeTransaction) : executeTransaction();
+}
+function isLibsqlFile() {
+  const config = databaseConfig();
+  return config.kind === 'libsql' && config.url.startsWith('file:');
+}
+// Administrative scripts only. Application operations use parameterized queries.
+export async function executeScript(sql: string) {
+  if (databaseConfig().kind === 'local')
+    await localExclusive(async () => {
+      database().exec(sql);
+    });
+  else await (await remote()).executeMultiple(sql);
+}
+export function closeDatabase() {
+  state.ubsRemote?.close();
+  state.ubsDb?.close();
+  state.ubsRemote = undefined;
+  state.ubsDb = undefined;
+  state.ubsRemoteReady = undefined;
 }
 export const id = () => randomUUID();
 export const now = () => new Date().toISOString();
-export function audit(userId: string, action: string, entityId: string, details: unknown = {}) {
-  run(
+export async function audit(
+  userId: string,
+  action: string,
+  entityId: string,
+  details: unknown = {},
+) {
+  await run(
     'INSERT INTO audit VALUES(?,?,?,?,?,?)',
     id(),
     userId,
@@ -81,4 +168,14 @@ export function audit(userId: string, action: string, entityId: string, details:
     JSON.stringify(details),
     now(),
   );
+}
+export type Statement = { sql: string; args: Value[] };
+// One network round trip for setup/imports; no long interactive seed transaction.
+export async function batch(statements: Statement[]) {
+  if (context.getStore()) throw new Error('Batch deve iniciar sua própria transação.');
+  if (databaseConfig().kind === 'local')
+    await transaction(async () => {
+      for (const s of statements) await run(s.sql, ...s.args);
+    });
+  else await (await remote()).batch(statements, 'write');
 }

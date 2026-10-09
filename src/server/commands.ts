@@ -12,43 +12,45 @@ import {
   saveVisit,
 } from './modules/care';
 import { createProfessional, createService, createSlot } from './modules/management';
-export function command(resource: string, user: User, input: unknown) {
-  const payload = input as { id?: string };
+export async function command(resource: string, user: User, input: unknown) {
+  const payload = input as {
+    id?: string;
+  };
   switch (resource) {
     case 'patients':
-      return savePatient(user, input, payload.id);
+      return await savePatient(user, input, payload.id);
     case 'conditions':
-      return recordCondition(user, input);
+      return await recordCondition(user, input);
     case 'reservations':
-      return reserve(user, input);
+      return await reserve(user, input);
     case 'tickets':
-      return ticketAction(user, input);
+      return await ticketAction(user, input);
     case 'items':
-      return createItem(user, input);
+      return await createItem(user, input);
     case 'lots':
-      return createLot(user, input);
+      return await createLot(user, input);
     case 'movements':
-      return changeStock(user, input);
+      return await changeStock(user, input);
     case 'lot-status':
-      return blockLot(user, input);
+      return await blockLot(user, input);
     case 'campaigns':
-      return createCampaign(user, input);
+      return await createCampaign(user, input);
     case 'targets':
-      return saveTarget(user, input);
+      return await saveTarget(user, input);
     case 'doses':
-      return applyDose(user, input);
+      return await applyDose(user, input);
     case 'pending-doses':
-      return planDose(user, input);
+      return await planDose(user, input);
     case 'close-pending-dose':
-      return closePendingDose(user, input);
+      return await closePendingDose(user, input);
     case 'visits':
-      return saveVisit(user, input, payload.id);
+      return await saveVisit(user, input, payload.id);
     case 'professionals':
-      return createProfessional(user, input);
+      return await createProfessional(user, input);
     case 'services':
-      return createService(user, input);
+      return await createService(user, input);
     case 'slots':
-      return createSlot(user, input);
+      return await createSlot(user, input);
     default:
       throw new DomainError('Operação não encontrada.', 404);
   }

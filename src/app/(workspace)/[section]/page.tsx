@@ -6,11 +6,17 @@ import { sections, access, type Section } from '@/domain/model';
 import { Workspace } from '@/components/workspace';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
-export default async function Page({ params }: { params: Promise<{ section: string }> }) {
+export default async function Page({
+  params,
+}: {
+  params: Promise<{
+    section: string;
+  }>;
+}) {
   const { section } = await params;
   if (!sections.includes(section as Section)) notFound();
-  const user = sessionUser((await cookies()).get('ubs_session')?.value);
+  const user = await sessionUser((await cookies()).get('ubs_session')?.value);
   if (!user) redirect('/login');
   if (!access[section as Section].includes(user.role)) redirect('/inicio');
-  return <Workspace initial={snapshot(user)} section={section as Section} />;
+  return <Workspace initial={await snapshot(user)} section={section as Section} />;
 }
