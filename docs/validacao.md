@@ -23,3 +23,14 @@ O teste de backup valida a cópia, não um exercício completo de recuperação 
 - Testes automatizados removem as variáveis de banco remoto herdadas e usam bases próprias descartáveis.
 
 **Limite da validação:** o modo libSQL em arquivo exercita o SDK e o SQL, mas não a rede, a latência, os limites transacionais ou a infraestrutura do Turso. O banco remoto ainda precisa ser criado, inicializado e configurado na Vercel conforme [deploy-vercel.md](deploy-vercel.md). Login e cadastro no deployment atualizado precisam ser verificados depois disso. Não foi feita nova inspeção visual: não houve alteração dos componentes de interface.
+
+## API do paciente v1 — 11/10/2026
+
+- 48 testes aprovados no SQLite nativo e os mesmos 48 no adaptador libSQL com arquivo temporário.
+- Cobertura adicional: Bearer exclusivo do paciente, hash e expiração de sessão, separação dos cookies web, logout revogável, autocadastro sem elevação de perfil, edição parcial, bloqueio de vínculos territoriais, isolamento de consultas e fichas, filtros/paginação, idempotência concorrente, validação HTTP e contrato OpenAPI.
+- Build de produção e TypeScript aprovados. A nova rota `/api/v1/[...path]` é dinâmica e usa runtime Node.js.
+- Integração HTTP com Next.js real aprovada nos dois adaptadores. Inclui cadastro, login sem Origin (como cliente nativo), perfil, reserva com duas chamadas simultâneas, consulta da mesma ficha pelo site, cancelamento concorrente, consultas privadas e logout. A integração anterior das oito telas do site também passou.
+- OpenAPI exportado e verificado contra os esquemas e operações da implementação; Prettier e `git diff --check` aprovados.
+- Testes isolados não alteraram os dados da UBS publicada. A migração aditiva 2 será aplicada na primeira conexão da versão atualizada, sem recriar dados existentes.
+
+O exemplo Kotlin/Retrofit e o guia foram entregues em `docs/mobile/`; não foi compilado APK, pois este repositório não contém projeto Android nem SDK/compilador Kotlin. Os testes HTTP exercitam o contrato que o aplicativo consumirá. Ainda não foi executado teste de carga nem homologação das novas rotas na Vercel nesta etapa local.

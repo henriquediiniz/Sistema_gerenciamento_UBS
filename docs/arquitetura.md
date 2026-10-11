@@ -81,3 +81,15 @@ O script de integração usa duas reservas simultâneas para uma vaga e dois ree
 - [Turso/libSQL: cliente TypeScript e transações](https://docs.turso.tech/sdk/ts/reference).
 - [Vercel: limitações de SQLite local](https://vercel.com/kb/guide/is-sqlite-supported-in-vercel).
 - A documentação embarcada na versão instalada do Next.js também foi verificada para Route Handlers e NextRequest.
+
+## API do paciente v1
+
+O transporte móvel fica em `app/api/v1/[...path]` e `server/patient-api`. Route Handler fino, contratos Zod explícitos, consultas paginadas com DTOs mínimos e serviços de domínio compartilhados mantêm o backend único. A lista de operações e os esquemas também geram OpenAPI; `npm run api:check` detecta divergência do arquivo distribuído.
+
+Sessões móveis opacas usam `patient_sessions`, expiração absoluta de oito horas e somente hash no banco. O transporte exige Bearer; não há fallback para cookies, refresh token nem dependência de Origin para clientes nativos. Quando Origin existe, ainda é validada. A autenticação de senha e a limitação de tentativas são compartilhadas com o site, sem emitir sessão móvel para funcionários. Permissões continuam verificadas a cada chamada.
+
+O paciente sempre deriva da sessão; consultas e mutações não aceitam `patient_id` do cliente. IDs de fichas alheias produzem 404. Edição do cadastro sincroniza o nome da conta e mantém vínculos da equipe. Autocadastro móvel inicia com área “A definir”. Anotações internas e diagnósticos não são incluídos nos DTOs móveis.
+
+A migração aditiva 2 cria sessões móveis, índices das consultas próprias e `reservation_requests`. A chave UUID de reserva é isolada por usuário e registrada na mesma transação da ficha. Reenvios devolvem a mesma ficha, inclusive após cancelamento; uma nova intenção exige nova chave. Cancelamento repetido é seguro, inclusive sob concorrência. Migração não altera usuários, senhas, fichas ou sessões web existentes.
+
+Paginação por deslocamento foi escolhida pela simplicidade do protótipo; coleções mutáveis podem deslocar itens entre páginas. Não há total nem promessa de snapshot consistente entre chamadas. Se volume/concorrência crescerem, evoluir para cursores estáveis, sem alterar silenciosamente o contrato v1.

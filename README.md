@@ -32,6 +32,12 @@ A tela de login permite preencher as contas de demonstração com um clique. O a
 
 A Vercel precisa de um banco remoto para persistir usuários, sessões e registros. Esta versão suporta **Turso/libSQL**, mantendo o SQLite local como padrão no desenvolvimento. Configure `TURSO_DATABASE_URL` e `TURSO_AUTH_TOKEN`, inicialize os dados fictícios e faça um novo deploy conforme o [guia de publicação](docs/deploy-vercel.md). Sem banco configurado, a API informa o problema com HTTP 503.
 
+## Aplicativo do paciente (Kotlin)
+
+A API versionada em `/api/v1` permite ao aplicativo usar o mesmo banco e as mesmas regras do site. Inclui cadastro, login Bearer, perfil, serviços/vagas, reserva/cancelamento de fichas, vacinação e visitas próprias. Sessões móveis são independentes dos cookies do site.
+
+Entregue ao desenvolvedor Android o [guia de integração](docs/mobile/README.md), o [contrato OpenAPI](docs/mobile/openapi.json) e o [exemplo Kotlin/Retrofit](docs/mobile/UbsPatientApi.kt). O contrato também está disponível em `/api/v1/openapi.json`. O projeto fornece o backend e o exemplo de cliente; não contém as telas nem o APK Android.
+
 ## O que experimentar
 
 1. **Coordenação:** conheça o painel, cadastre profissionais e serviços, disponibilize vagas para amanhã.
