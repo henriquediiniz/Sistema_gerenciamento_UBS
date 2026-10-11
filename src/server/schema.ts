@@ -20,4 +20,12 @@ export const schema = `
  CREATE TABLE IF NOT EXISTS visits (id TEXT PRIMARY KEY, patient_id TEXT NOT NULL REFERENCES patients(id), acs_id TEXT NOT NULL REFERENCES users(id), date TEXT NOT NULL, status TEXT NOT NULL CHECK(status IN ('PLANEJADA','REALIZADA','SEM_CONTATO')), result TEXT NOT NULL DEFAULT '', pending TEXT NOT NULL DEFAULT '');
  CREATE TABLE IF NOT EXISTS audit (id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id), action TEXT NOT NULL, entity_id TEXT NOT NULL, details TEXT NOT NULL, created_at TEXT NOT NULL);
  INSERT OR IGNORE INTO schema_migrations VALUES(1,datetime('now'));
+ CREATE TABLE IF NOT EXISTS patient_sessions (token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id), expires_at TEXT NOT NULL);
+ CREATE INDEX IF NOT EXISTS patient_sessions_expiry ON patient_sessions(expires_at);
+ CREATE TABLE IF NOT EXISTS reservation_requests (user_id TEXT NOT NULL REFERENCES users(id), request_key TEXT NOT NULL, patient_id TEXT NOT NULL REFERENCES patients(id), slot_id TEXT NOT NULL REFERENCES slots(id), ticket_id TEXT NOT NULL REFERENCES tickets(id), PRIMARY KEY(user_id,request_key));
+ CREATE INDEX IF NOT EXISTS tickets_patient ON tickets(patient_id,number);
+ CREATE INDEX IF NOT EXISTS doses_patient ON doses(patient_id,applied_at);
+ CREATE INDEX IF NOT EXISTS visits_patient ON visits(patient_id,date);
+ CREATE INDEX IF NOT EXISTS pending_doses_patient ON pending_doses(patient_id,due_date);
+ INSERT OR IGNORE INTO schema_migrations VALUES(2,datetime('now'));
  `;

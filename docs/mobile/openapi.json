@@ -1,0 +1,1946 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "UBS Conecta — API do paciente",
+    "version": "1.0.0",
+    "description": "Protótipo com dados fictícios. Sessão opaca Bearer de oito horas, sem refresh token. Cookies do site não autenticam esta API. Horários de atendimento em America/Fortaleza. Coleções usam paginação, com has_more; não há sincronização offline nem push. Campos desconhecidos são rejeitados."
+  },
+  "servers": [
+    {
+      "url": "https://sistema-gerenciamento-ubs.vercel.app/api/v1",
+      "description": "Demonstração publicada"
+    },
+    { "url": "http://127.0.0.1:3000/api/v1", "description": "Desenvolvimento local" }
+  ],
+  "security": [{ "patientBearer": [] }],
+  "paths": {
+    "/auth/login": {
+      "post": {
+        "operationId": "loginPatient",
+        "summary": "Entrar com uma conta de paciente; sessão válida por oito horas",
+        "security": [],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/LoginInput" } }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operação concluída",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/AuthResponse" } }
+            }
+          },
+          "400": {
+            "description": "JSON, campos, filtros ou regra de negócio inválidos",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "401": {
+            "description": "Credenciais incorretas ou sessão ausente/expirada",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            },
+            "headers": { "WWW-Authenticate": { "schema": { "type": "string" } } }
+          },
+          "403": {
+            "description": "Perfil não autorizado ou origem inválida",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "404": {
+            "description": "Registro não encontrado ou não pertence ao paciente",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "405": {
+            "description": "Método não permitido",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            },
+            "headers": { "Allow": { "schema": { "type": "string" } } }
+          },
+          "409": {
+            "description": "Duplicidade, falta de vagas ou chave reutilizada para outra reserva",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "413": {
+            "description": "Corpo maior que 64 KiB",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "415": {
+            "description": "Use Content-Type: application/json",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "429": {
+            "description": "Limite de tentativas de login; aguarde quinze minutos",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "500": {
+            "description": "Falha interna",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "503": {
+            "description": "Banco não configurado",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          }
+        }
+      }
+    },
+    "/auth/register": {
+      "post": {
+        "operationId": "registerPatient",
+        "summary": "Criar conta de paciente; faça login após o cadastro",
+        "security": [],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/RegisterInput" } }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Operação concluída",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/RegistrationResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "JSON, campos, filtros ou regra de negócio inválidos",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "401": {
+            "description": "Credenciais incorretas ou sessão ausente/expirada",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            },
+            "headers": { "WWW-Authenticate": { "schema": { "type": "string" } } }
+          },
+          "403": {
+            "description": "Perfil não autorizado ou origem inválida",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "404": {
+            "description": "Registro não encontrado ou não pertence ao paciente",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "405": {
+            "description": "Método não permitido",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            },
+            "headers": { "Allow": { "schema": { "type": "string" } } }
+          },
+          "409": {
+            "description": "Duplicidade, falta de vagas ou chave reutilizada para outra reserva",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "413": {
+            "description": "Corpo maior que 64 KiB",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "415": {
+            "description": "Use Content-Type: application/json",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "429": {
+            "description": "Limite de tentativas de login; aguarde quinze minutos",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "500": {
+            "description": "Falha interna",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "503": {
+            "description": "Banco não configurado",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "operationId": "logoutPatient",
+        "summary": "Revogar somente a sessão móvel enviada",
+        "security": [{ "patientBearer": [] }],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/EmptyInput" } }
+          }
+        },
+        "responses": {
+          "204": { "description": "Sessão revogada; sem corpo" },
+          "400": {
+            "description": "JSON, campos, filtros ou regra de negócio inválidos",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "401": {
+            "description": "Credenciais incorretas ou sessão ausente/expirada",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            },
+            "headers": { "WWW-Authenticate": { "schema": { "type": "string" } } }
+          },
+          "403": {
+            "description": "Perfil não autorizado ou origem inválida",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "404": {
+            "description": "Registro não encontrado ou não pertence ao paciente",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "405": {
+            "description": "Método não permitido",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            },
+            "headers": { "Allow": { "schema": { "type": "string" } } }
+          },
+          "409": {
+            "description": "Duplicidade, falta de vagas ou chave reutilizada para outra reserva",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "413": {
+            "description": "Corpo maior que 64 KiB",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "415": {
+            "description": "Use Content-Type: application/json",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "429": {
+            "description": "Limite de tentativas de login; aguarde quinze minutos",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "500": {
+            "description": "Falha interna",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "503": {
+            "description": "Banco não configurado",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          }
+        }
+      }
+    },
+    "/me": {
+      "get": {
+        "operationId": "getMe",
+        "summary": "Consultar conta e cadastro próprios",
+        "security": [{ "patientBearer": [] }],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Operação concluída",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/MeResponse" } }
+            }
+          },
+          "400": {
+            "description": "JSON, campos, filtros ou regra de negócio inválidos",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "401": {
+            "description": "Credenciais incorretas ou sessão ausente/expirada",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            },
+            "headers": { "WWW-Authenticate": { "schema": { "type": "string" } } }
+          },
+          "403": {
+            "description": "Perfil não autorizado ou origem inválida",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "404": {
+            "description": "Registro não encontrado ou não pertence ao paciente",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "405": {
+            "description": "Método não permitido",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            },
+            "headers": { "Allow": { "schema": { "type": "string" } } }
+          },
+          "409": {
+            "description": "Duplicidade, falta de vagas ou chave reutilizada para outra reserva",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "413": {
+            "description": "Corpo maior que 64 KiB",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "415": {
+            "description": "Use Content-Type: application/json",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "429": {
+            "description": "Limite de tentativas de login; aguarde quinze minutos",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "500": {
+            "description": "Falha interna",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "503": {
+            "description": "Banco não configurado",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateMe",
+        "summary": "Atualizar dados próprios; não permite mudar área, ACS, perfil ou e-mail",
+        "security": [{ "patientBearer": [] }],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/ProfileInput" } }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operação concluída",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/MeResponse" } }
+            }
+          },
+          "400": {
+            "description": "JSON, campos, filtros ou regra de negócio inválidos",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "401": {
+            "description": "Credenciais incorretas ou sessão ausente/expirada",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            },
+            "headers": { "WWW-Authenticate": { "schema": { "type": "string" } } }
+          },
+          "403": {
+            "description": "Perfil não autorizado ou origem inválida",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "404": {
+            "description": "Registro não encontrado ou não pertence ao paciente",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "405": {
+            "description": "Método não permitido",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            },
+            "headers": { "Allow": { "schema": { "type": "string" } } }
+          },
+          "409": {
+            "description": "Duplicidade, falta de vagas ou chave reutilizada para outra reserva",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "413": {
+            "description": "Corpo maior que 64 KiB",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "415": {
+            "description": "Use Content-Type: application/json",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "429": {
+            "description": "Limite de tentativas de login; aguarde quinze minutos",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "500": {
+            "description": "Falha interna",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "503": {
+            "description": "Banco não configurado",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          }
+        }
+      }
+    },
+    "/services": {
+      "get": {
+        "operationId": "listServices",
+        "summary": "Listar serviços da UBS",
+        "security": [{ "patientBearer": [] }],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 10000, "default": 1 }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operação concluída",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ServicesResponse" } }
+            }
+          },
+          "400": {
+            "description": "JSON, campos, filtros ou regra de negócio inválidos",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "401": {
+            "description": "Credenciais incorretas ou sessão ausente/expirada",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            },
+            "headers": { "WWW-Authenticate": { "schema": { "type": "string" } } }
+          },
+          "403": {
+            "description": "Perfil não autorizado ou origem inválida",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "404": {
+            "description": "Registro não encontrado ou não pertence ao paciente",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "405": {
+            "description": "Método não permitido",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            },
+            "headers": { "Allow": { "schema": { "type": "string" } } }
+          },
+          "409": {
+            "description": "Duplicidade, falta de vagas ou chave reutilizada para outra reserva",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "413": {
+            "description": "Corpo maior que 64 KiB",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "415": {
+            "description": "Use Content-Type: application/json",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "429": {
+            "description": "Limite de tentativas de login; aguarde quinze minutos",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "500": {
+            "description": "Falha interna",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "503": {
+            "description": "Banco não configurado",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          }
+        }
+      }
+    },
+    "/slots": {
+      "get": {
+        "operationId": "listSlots",
+        "summary": "Listar períodos futuros com vagas; padrão hoje até hoje + 30 dias",
+        "security": [{ "patientBearer": [] }],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 10000, "default": 1 }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 }
+          },
+          { "in": "query", "name": "service_id", "schema": { "type": "string" } },
+          { "in": "query", "name": "date_from", "schema": { "type": "string", "format": "date" } },
+          { "in": "query", "name": "date_to", "schema": { "type": "string", "format": "date" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operação concluída",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/SlotsResponse" } }
+            }
+          },
+          "400": {
+            "description": "JSON, campos, filtros ou regra de negócio inválidos",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "401": {
+            "description": "Credenciais incorretas ou sessão ausente/expirada",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            },
+            "headers": { "WWW-Authenticate": { "schema": { "type": "string" } } }
+          },
+          "403": {
+            "description": "Perfil não autorizado ou origem inválida",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "404": {
+            "description": "Registro não encontrado ou não pertence ao paciente",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "405": {
+            "description": "Método não permitido",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            },
+            "headers": { "Allow": { "schema": { "type": "string" } } }
+          },
+          "409": {
+            "description": "Duplicidade, falta de vagas ou chave reutilizada para outra reserva",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "413": {
+            "description": "Corpo maior que 64 KiB",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "415": {
+            "description": "Use Content-Type: application/json",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "429": {
+            "description": "Limite de tentativas de login; aguarde quinze minutos",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "500": {
+            "description": "Falha interna",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "503": {
+            "description": "Banco não configurado",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          }
+        }
+      }
+    },
+    "/tickets": {
+      "get": {
+        "operationId": "listTickets",
+        "summary": "Listar somente as próprias fichas",
+        "security": [{ "patientBearer": [] }],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 10000, "default": 1 }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "RESERVADA",
+                "AGUARDANDO",
+                "EM_ATENDIMENTO",
+                "CONCLUIDA",
+                "AUSENTE",
+                "CANCELADA"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operação concluída",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/TicketsResponse" } }
+            }
+          },
+          "400": {
+            "description": "JSON, campos, filtros ou regra de negócio inválidos",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "401": {
+            "description": "Credenciais incorretas ou sessão ausente/expirada",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            },
+            "headers": { "WWW-Authenticate": { "schema": { "type": "string" } } }
+          },
+          "403": {
+            "description": "Perfil não autorizado ou origem inválida",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "404": {
+            "description": "Registro não encontrado ou não pertence ao paciente",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "405": {
+            "description": "Método não permitido",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            },
+            "headers": { "Allow": { "schema": { "type": "string" } } }
+          },
+          "409": {
+            "description": "Duplicidade, falta de vagas ou chave reutilizada para outra reserva",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "413": {
+            "description": "Corpo maior que 64 KiB",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "415": {
+            "description": "Use Content-Type: application/json",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "429": {
+            "description": "Limite de tentativas de login; aguarde quinze minutos",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "500": {
+            "description": "Falha interna",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "503": {
+            "description": "Banco não configurado",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          }
+        }
+      }
+    },
+    "/tickets/{id}": {
+      "get": {
+        "operationId": "getTicket",
+        "summary": "Consultar uma ficha própria; não expõe dados de outras pessoas na fila",
+        "security": [{ "patientBearer": [] }],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": { "type": "string", "minLength": 1 },
+            "description": "ID opaco da ficha; não é seu número."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operação concluída",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/TicketResponse" } }
+            }
+          },
+          "400": {
+            "description": "JSON, campos, filtros ou regra de negócio inválidos",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "401": {
+            "description": "Credenciais incorretas ou sessão ausente/expirada",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            },
+            "headers": { "WWW-Authenticate": { "schema": { "type": "string" } } }
+          },
+          "403": {
+            "description": "Perfil não autorizado ou origem inválida",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "404": {
+            "description": "Registro não encontrado ou não pertence ao paciente",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "405": {
+            "description": "Método não permitido",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            },
+            "headers": { "Allow": { "schema": { "type": "string" } } }
+          },
+          "409": {
+            "description": "Duplicidade, falta de vagas ou chave reutilizada para outra reserva",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "413": {
+            "description": "Corpo maior que 64 KiB",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "415": {
+            "description": "Use Content-Type: application/json",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "429": {
+            "description": "Limite de tentativas de login; aguarde quinze minutos",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "500": {
+            "description": "Falha interna",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "503": {
+            "description": "Banco não configurado",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          }
+        }
+      }
+    },
+    "/reservations": {
+      "post": {
+        "operationId": "reserveSlot",
+        "summary": "Reservar vaga para o paciente autenticado; mesma chave e vaga repetem a ficha, sem duplicá-la",
+        "security": [{ "patientBearer": [] }],
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Gere uma UUID por intenção de reserva. Reutilize-a em tentativas da mesma reserva; após cancelamento, uma nova reserva exige outra chave."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/ReservationInput" } }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Operação concluída",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/TicketResponse" } }
+            }
+          },
+          "400": {
+            "description": "JSON, campos, filtros ou regra de negócio inválidos",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "401": {
+            "description": "Credenciais incorretas ou sessão ausente/expirada",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            },
+            "headers": { "WWW-Authenticate": { "schema": { "type": "string" } } }
+          },
+          "403": {
+            "description": "Perfil não autorizado ou origem inválida",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "404": {
+            "description": "Registro não encontrado ou não pertence ao paciente",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "405": {
+            "description": "Método não permitido",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            },
+            "headers": { "Allow": { "schema": { "type": "string" } } }
+          },
+          "409": {
+            "description": "Duplicidade, falta de vagas ou chave reutilizada para outra reserva",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "413": {
+            "description": "Corpo maior que 64 KiB",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "415": {
+            "description": "Use Content-Type: application/json",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "429": {
+            "description": "Limite de tentativas de login; aguarde quinze minutos",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "500": {
+            "description": "Falha interna",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "503": {
+            "description": "Banco não configurado",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          }
+        }
+      }
+    },
+    "/tickets/{id}/cancel": {
+      "post": {
+        "operationId": "cancelTicket",
+        "summary": "Cancelar ficha reservada antes do início; repetir cancelamento é seguro",
+        "security": [{ "patientBearer": [] }],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": { "type": "string", "minLength": 1 },
+            "description": "ID opaco da ficha; não é seu número."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/EmptyInput" } }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operação concluída",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/TicketResponse" } }
+            }
+          },
+          "400": {
+            "description": "JSON, campos, filtros ou regra de negócio inválidos",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "401": {
+            "description": "Credenciais incorretas ou sessão ausente/expirada",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            },
+            "headers": { "WWW-Authenticate": { "schema": { "type": "string" } } }
+          },
+          "403": {
+            "description": "Perfil não autorizado ou origem inválida",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "404": {
+            "description": "Registro não encontrado ou não pertence ao paciente",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "405": {
+            "description": "Método não permitido",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            },
+            "headers": { "Allow": { "schema": { "type": "string" } } }
+          },
+          "409": {
+            "description": "Duplicidade, falta de vagas ou chave reutilizada para outra reserva",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "413": {
+            "description": "Corpo maior que 64 KiB",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "415": {
+            "description": "Use Content-Type: application/json",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "429": {
+            "description": "Limite de tentativas de login; aguarde quinze minutos",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "500": {
+            "description": "Falha interna",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "503": {
+            "description": "Banco não configurado",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          }
+        }
+      }
+    },
+    "/me/vaccinations": {
+      "get": {
+        "operationId": "listVaccinations",
+        "summary": "Consultar próprias vacinas aplicadas",
+        "security": [{ "patientBearer": [] }],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 10000, "default": 1 }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operação concluída",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/VaccinationsResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "JSON, campos, filtros ou regra de negócio inválidos",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "401": {
+            "description": "Credenciais incorretas ou sessão ausente/expirada",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            },
+            "headers": { "WWW-Authenticate": { "schema": { "type": "string" } } }
+          },
+          "403": {
+            "description": "Perfil não autorizado ou origem inválida",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "404": {
+            "description": "Registro não encontrado ou não pertence ao paciente",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "405": {
+            "description": "Método não permitido",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            },
+            "headers": { "Allow": { "schema": { "type": "string" } } }
+          },
+          "409": {
+            "description": "Duplicidade, falta de vagas ou chave reutilizada para outra reserva",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "413": {
+            "description": "Corpo maior que 64 KiB",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "415": {
+            "description": "Use Content-Type: application/json",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "429": {
+            "description": "Limite de tentativas de login; aguarde quinze minutos",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "500": {
+            "description": "Falha interna",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "503": {
+            "description": "Banco não configurado",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          }
+        }
+      }
+    },
+    "/me/pending-vaccinations": {
+      "get": {
+        "operationId": "listPendingVaccinations",
+        "summary": "Consultar doses previstas; não são agendamentos nem recomendações automáticas",
+        "security": [{ "patientBearer": [] }],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 10000, "default": 1 }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operação concluída",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PendingVaccinationsResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "JSON, campos, filtros ou regra de negócio inválidos",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "401": {
+            "description": "Credenciais incorretas ou sessão ausente/expirada",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            },
+            "headers": { "WWW-Authenticate": { "schema": { "type": "string" } } }
+          },
+          "403": {
+            "description": "Perfil não autorizado ou origem inválida",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "404": {
+            "description": "Registro não encontrado ou não pertence ao paciente",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "405": {
+            "description": "Método não permitido",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            },
+            "headers": { "Allow": { "schema": { "type": "string" } } }
+          },
+          "409": {
+            "description": "Duplicidade, falta de vagas ou chave reutilizada para outra reserva",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "413": {
+            "description": "Corpo maior que 64 KiB",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "415": {
+            "description": "Use Content-Type: application/json",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "429": {
+            "description": "Limite de tentativas de login; aguarde quinze minutos",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "500": {
+            "description": "Falha interna",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "503": {
+            "description": "Banco não configurado",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          }
+        }
+      }
+    },
+    "/me/visits": {
+      "get": {
+        "operationId": "listVisits",
+        "summary": "Consultar próprias visitas de ACS, sem anotações internas da equipe",
+        "security": [{ "patientBearer": [] }],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 10000, "default": 1 }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operação concluída",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/VisitsResponse" } }
+            }
+          },
+          "400": {
+            "description": "JSON, campos, filtros ou regra de negócio inválidos",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "401": {
+            "description": "Credenciais incorretas ou sessão ausente/expirada",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            },
+            "headers": { "WWW-Authenticate": { "schema": { "type": "string" } } }
+          },
+          "403": {
+            "description": "Perfil não autorizado ou origem inválida",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "404": {
+            "description": "Registro não encontrado ou não pertence ao paciente",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "405": {
+            "description": "Método não permitido",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            },
+            "headers": { "Allow": { "schema": { "type": "string" } } }
+          },
+          "409": {
+            "description": "Duplicidade, falta de vagas ou chave reutilizada para outra reserva",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "413": {
+            "description": "Corpo maior que 64 KiB",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "415": {
+            "description": "Use Content-Type: application/json",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "429": {
+            "description": "Limite de tentativas de login; aguarde quinze minutos",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "500": {
+            "description": "Falha interna",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "503": {
+            "description": "Banco não configurado",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "patientBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "Opaque",
+        "description": "Token retornado em access_token por /auth/login. Não é JWT nem o token do Turso."
+      }
+    },
+    "schemas": {
+      "LoginInput": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+          },
+          "password": { "type": "string", "minLength": 1, "maxLength": 128 }
+        },
+        "required": ["email", "password"],
+        "additionalProperties": false
+      },
+      "RegisterInput": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "minLength": 3, "maxLength": 500 },
+          "document": { "type": "string", "minLength": 5, "maxLength": 30 },
+          "birth_date": {
+            "type": "string",
+            "format": "date",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+          },
+          "phone": { "default": "", "type": "string", "maxLength": 30 },
+          "neighborhood": { "type": "string", "minLength": 1, "maxLength": 500 },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+          },
+          "password": { "type": "string", "minLength": 8, "maxLength": 128 }
+        },
+        "required": ["name", "document", "birth_date", "neighborhood", "email", "password"],
+        "additionalProperties": false
+      },
+      "ProfileInput": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "minLength": 3, "maxLength": 500 },
+          "document": { "type": "string", "minLength": 5, "maxLength": 30 },
+          "birth_date": {
+            "type": "string",
+            "format": "date",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+          },
+          "phone": { "type": "string", "maxLength": 30 },
+          "neighborhood": { "type": "string", "minLength": 1, "maxLength": 500 }
+        },
+        "additionalProperties": false,
+        "minProperties": 1
+      },
+      "ReservationInput": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": { "slot_id": { "type": "string", "minLength": 1, "maxLength": 500 } },
+        "required": ["slot_id"],
+        "additionalProperties": false
+      },
+      "EmptyInput": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "AuthResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "access_token": { "type": "string" },
+              "token_type": { "type": "string", "const": "Bearer" },
+              "expires_in": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "expires_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "user": {
+                "type": "object",
+                "properties": {
+                  "id": { "type": "string" },
+                  "name": { "type": "string" },
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                  },
+                  "role": { "type": "string", "const": "PACIENTE" }
+                },
+                "required": ["id", "name", "email", "role"],
+                "additionalProperties": false
+              }
+            },
+            "required": ["access_token", "token_type", "expires_in", "expires_at", "user"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false
+      },
+      "RegistrationResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": { "id": { "type": "string" } },
+            "required": ["id"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false
+      },
+      "MeResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "user": {
+                "type": "object",
+                "properties": {
+                  "id": { "type": "string" },
+                  "name": { "type": "string" },
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                  },
+                  "role": { "type": "string", "const": "PACIENTE" }
+                },
+                "required": ["id", "name", "email", "role"],
+                "additionalProperties": false
+              },
+              "patient": {
+                "type": "object",
+                "properties": {
+                  "id": { "type": "string" },
+                  "name": { "type": "string" },
+                  "document": { "type": "string" },
+                  "birth_date": {
+                    "type": "string",
+                    "format": "date",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                  },
+                  "phone": { "type": "string" },
+                  "neighborhood": { "type": "string" },
+                  "area": { "type": "string" },
+                  "acs_name": { "type": ["string", "null"] }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "document",
+                  "birth_date",
+                  "phone",
+                  "neighborhood",
+                  "area",
+                  "acs_name"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": ["user", "patient"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false
+      },
+      "TicketResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "number": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "slot_id": { "type": "string" },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "RESERVADA",
+                  "AGUARDANDO",
+                  "EM_ATENDIMENTO",
+                  "CONCLUIDA",
+                  "AUSENTE",
+                  "CANCELADA"
+                ]
+              },
+              "service_name": { "type": "string" },
+              "professional_name": { "type": "string" },
+              "date": {
+                "type": "string",
+                "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+              },
+              "period": { "type": "string" },
+              "starts_at": { "type": "string" },
+              "created_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "can_cancel": { "type": "boolean" }
+            },
+            "required": [
+              "id",
+              "number",
+              "slot_id",
+              "status",
+              "service_name",
+              "professional_name",
+              "date",
+              "period",
+              "starts_at",
+              "created_at",
+              "can_cancel"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false
+      },
+      "ServicesResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": { "id": { "type": "string" }, "name": { "type": "string" } },
+              "required": ["id", "name"],
+              "additionalProperties": false
+            }
+          },
+          "pagination": {
+            "type": "object",
+            "properties": {
+              "page": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "page_size": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "has_more": { "type": "boolean" }
+            },
+            "required": ["page", "page_size", "has_more"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["data", "pagination"],
+        "additionalProperties": false
+      },
+      "SlotsResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "service_id": { "type": "string" },
+                "service_name": { "type": "string" },
+                "professional_name": { "type": "string" },
+                "date": {
+                  "type": "string",
+                  "format": "date",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                },
+                "period": { "type": "string" },
+                "starts_at": { "type": "string" },
+                "capacity": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "available": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "id",
+                "service_id",
+                "service_name",
+                "professional_name",
+                "date",
+                "period",
+                "starts_at",
+                "capacity",
+                "available"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "pagination": {
+            "type": "object",
+            "properties": {
+              "page": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "page_size": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "has_more": { "type": "boolean" }
+            },
+            "required": ["page", "page_size", "has_more"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["data", "pagination"],
+        "additionalProperties": false
+      },
+      "TicketsResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "number": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "slot_id": { "type": "string" },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "RESERVADA",
+                    "AGUARDANDO",
+                    "EM_ATENDIMENTO",
+                    "CONCLUIDA",
+                    "AUSENTE",
+                    "CANCELADA"
+                  ]
+                },
+                "service_name": { "type": "string" },
+                "professional_name": { "type": "string" },
+                "date": {
+                  "type": "string",
+                  "format": "date",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                },
+                "period": { "type": "string" },
+                "starts_at": { "type": "string" },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                "can_cancel": { "type": "boolean" }
+              },
+              "required": [
+                "id",
+                "number",
+                "slot_id",
+                "status",
+                "service_name",
+                "professional_name",
+                "date",
+                "period",
+                "starts_at",
+                "created_at",
+                "can_cancel"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "pagination": {
+            "type": "object",
+            "properties": {
+              "page": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "page_size": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "has_more": { "type": "boolean" }
+            },
+            "required": ["page", "page_size", "has_more"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["data", "pagination"],
+        "additionalProperties": false
+      },
+      "VaccinationsResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "vaccine_name": { "type": "string" },
+                "dose": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "applied_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                "lot_code": { "type": "string" },
+                "professional_name": { "type": "string" },
+                "campaign_name": { "type": ["string", "null"] }
+              },
+              "required": [
+                "id",
+                "vaccine_name",
+                "dose",
+                "applied_at",
+                "lot_code",
+                "professional_name",
+                "campaign_name"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "pagination": {
+            "type": "object",
+            "properties": {
+              "page": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "page_size": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "has_more": { "type": "boolean" }
+            },
+            "required": ["page", "page_size", "has_more"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["data", "pagination"],
+        "additionalProperties": false
+      },
+      "PendingVaccinationsResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "vaccine_name": { "type": "string" },
+                "due_date": {
+                  "type": "string",
+                  "format": "date",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                },
+                "done": { "type": "boolean" }
+              },
+              "required": ["id", "vaccine_name", "due_date", "done"],
+              "additionalProperties": false
+            }
+          },
+          "pagination": {
+            "type": "object",
+            "properties": {
+              "page": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "page_size": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "has_more": { "type": "boolean" }
+            },
+            "required": ["page", "page_size", "has_more"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["data", "pagination"],
+        "additionalProperties": false
+      },
+      "VisitsResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "date": {
+                  "type": "string",
+                  "format": "date",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                },
+                "status": { "type": "string", "enum": ["PLANEJADA", "REALIZADA", "SEM_CONTATO"] },
+                "acs_name": { "type": "string" }
+              },
+              "required": ["id", "date", "status", "acs_name"],
+              "additionalProperties": false
+            }
+          },
+          "pagination": {
+            "type": "object",
+            "properties": {
+              "page": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "page_size": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "has_more": { "type": "boolean" }
+            },
+            "required": ["page", "page_size", "has_more"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["data", "pagination"],
+        "additionalProperties": false
+      },
+      "ErrorResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": { "type": "string" },
+              "message": { "type": "string" },
+              "fields": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": { "path": { "type": "string" }, "message": { "type": "string" } },
+                  "required": ["path", "message"],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": ["code", "message"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["error"],
+        "additionalProperties": false
+      }
+    }
+  }
+}

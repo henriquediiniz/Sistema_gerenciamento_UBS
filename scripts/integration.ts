@@ -1,3 +1,4 @@
+import { mobileIntegration } from './mobile-integration';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -237,6 +238,7 @@ try {
     (await fetch(`${origin}/api/snapshot`, { headers: { Cookie: patient } })).status,
     401,
   );
+  await mobileIntegration(origin, coord);
   console.log(
     'Integração HTTP aprovada: 8 telas, login, autocadastro e novo login, origem, 4 perfis, persistência, capacidade concorrente, idempotência e saldo de estoque.',
   );

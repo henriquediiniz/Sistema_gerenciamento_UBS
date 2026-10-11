@@ -19,7 +19,9 @@
     "db:check": "node --import tsx scripts/check-db.ts",
     "db:seed:remote": "node --env-file=.env.turso.local --import tsx scripts/seed.ts --remote",
     "db:check:remote": "node --env-file=.env.turso.local --import tsx scripts/check-db.ts --remote",
-    "db:backup": "node --import tsx scripts/backup.ts"
+    "db:backup": "node --import tsx scripts/backup.ts",
+    "api:export": "node --import tsx scripts/export-openapi.ts",
+    "api:check": "node --import tsx scripts/export-openapi.ts --check"
   },
   "dependencies": {
     "@fontsource/dm-sans": "^5.3.0",

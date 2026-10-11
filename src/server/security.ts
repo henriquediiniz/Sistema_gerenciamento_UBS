@@ -15,7 +15,7 @@ export function verifyPassword(password: string, hash: string) {
 }
 const digest = (token: string) => createHash('sha256').update(token).digest('hex');
 const dummyHash = hashPassword('constant-time-invalid-account');
-export async function login(email: string, password: string) {
+export async function authenticate(email: string, password: string): Promise<User> {
   const normalized = email.trim().toLowerCase();
   const attempt = await one<{
     attempts: number;
@@ -44,6 +44,17 @@ export async function login(email: string, password: string) {
     ensure(false, 'E-mail ou senha incorretos.', 401);
   }
   await run('DELETE FROM login_attempts WHERE email=?', normalized);
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    area: user.area,
+    patient_id: user.patient_id,
+  };
+}
+export async function login(email: string, password: string) {
+  const user = await authenticate(email, password);
   return await createSession(user.id);
 }
 export async function createSession(userId: string) {

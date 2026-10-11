@@ -42,6 +42,7 @@ export async function savePatient(user: User, input: unknown, patientId?: string
         key,
       );
       await audit(user.id, 'Paciente atualizado', key, { before, after: data });
+      await run('UPDATE users SET name=? WHERE patient_id=?', data.name, key);
     } else {
       ensure(user.role !== 'PACIENTE', 'O paciente só pode editar o próprio cadastro.', 403);
       await insertPatient(key, data);

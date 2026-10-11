@@ -10,12 +10,14 @@ process.env.DATABASE_PATH = ':memory:';
 const temp =
   process.env.TEST_DATABASE_DRIVER === 'libsql' ? mkdtempSync(join(tmpdir(), 'ubs-libsql-')) : null;
 if (temp) process.env.TURSO_DATABASE_URL = `file:${join(temp, 'test.sqlite')}`;
-const { executeScript, closeDatabase, one, run, transaction } = await import('../src/server/db');
+const { executeScript, closeDatabase, all, one, run, transaction } =
+  await import('../src/server/db');
 const { seed } = await import('../src/server/seed');
 const { command } = await import('../src/server/commands');
 const { snapshot } = await import('../src/server/queries');
 const { login, logout, sessionUser, verifyPassword } = await import('../src/server/security');
 const { register } = await import('../src/server/modules/patients');
+const { reserve } = await import('../src/server/modules/appointments');
 const { today, dayAfter } = await import('../src/domain/rules');
 import type { User, Patient } from '../src/domain/model';
 const user = async (id: string) =>
@@ -31,6 +33,8 @@ const count = async (table: string) =>
 beforeEach(async () => {
   await executeScript('PRAGMA foreign_keys=OFF');
   for (const table of [
+    'reservation_requests',
+    'patient_sessions',
     'audit',
     'visits',
     'pending_doses',
@@ -517,4 +521,338 @@ test('seed repetido não sobrescreve cadastros existentes', async () => {
   await seed();
   assert.equal(await count('users'), total);
   assert.equal((await user('u-coord')).name, 'Nome preservado');
+});
+
+const { patientApi } = await import('../src/server/patient-api/handler');
+const { schemas: apiSchemas, openApiDocument } = await import('../src/server/patient-api/openapi');
+const { createHash } = await import('node:crypto');
+async function mobile(
+  path: string,
+  options: {
+    method?: string;
+    token?: string;
+    body?: unknown;
+    headers?: Record<string, string>;
+    raw?: string;
+  } = {},
+) {
+  const headers = {
+    ...(options.body !== undefined || options.raw !== undefined
+      ? { 'Content-Type': 'application/json' }
+      : {}),
+    ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
+    ...options.headers,
+  };
+  const request = new Request(`http://127.0.0.1:3000/api/v1/${path}`, {
+    method: options.method || 'GET',
+    headers,
+    ...(options.body !== undefined || options.raw !== undefined
+      ? { body: options.raw ?? JSON.stringify(options.body) }
+      : {}),
+  });
+  const response = await patientApi(request, path.split('?')[0].split('/'));
+  return {
+    status: response.status,
+    headers: response.headers,
+    body: response.status === 204 ? null : await response.json(),
+  };
+}
+async function mobileLogin() {
+  const response = await mobile('auth/login', {
+    method: 'POST',
+    body: { email: 'paciente@ubs.demo', password: 'Demo@12345' },
+  });
+  assert.equal(response.status, 200);
+  apiSchemas.AuthResponse.parse(response.body);
+  return response.body.data.access_token as string;
+}
+test('API móvel: login aceita apenas paciente, token fica como hash e expiração é aplicada', async () => {
+  const denied = await mobile('auth/login', {
+    method: 'POST',
+    body: { email: 'coordenacao@ubs.demo', password: 'Demo@12345' },
+  });
+  assert.equal(denied.status, 403);
+  assert.equal(await count('patient_sessions'), 0);
+  const token = await mobileLogin();
+  const stored = await one<{ token_hash: string }>('SELECT token_hash FROM patient_sessions');
+  assert.equal(stored?.token_hash, createHash('sha256').update(token).digest('hex'));
+  assert.equal((await mobile('me', { token })).status, 200);
+  await run('UPDATE patient_sessions SET expires_at=?', new Date(0).toISOString());
+  const expired = await mobile('me', { token });
+  assert.equal(expired.status, 401);
+  assert.equal(expired.body.error.code, 'UNAUTHORIZED');
+  assert.match(expired.headers.get('www-authenticate')!, /Bearer/);
+});
+test('API móvel: sessões de cookie e Bearer são independentes e logout é revogável', async () => {
+  const webToken = await login('paciente@ubs.demo', 'Demo@12345');
+  assert.equal(
+    (await mobile('me', { headers: { Cookie: `ubs_session=${webToken}` } })).status,
+    401,
+  );
+  assert.equal((await mobile('me', { token: webToken })).status, 401);
+  const token = await mobileLogin();
+  assert.equal(await sessionUser(token), undefined);
+  assert.equal((await mobile('auth/logout', { token, method: 'POST', body: {} })).status, 204);
+  assert.equal((await mobile('me', { token })).status, 401);
+  assert.equal((await mobile('auth/logout', { token, method: 'POST', body: {} })).status, 204);
+  assert.equal((await sessionUser(webToken))?.id, 'u-paciente');
+});
+test('API móvel: autocadastro não permite escolher papel, área ou vínculo de outra pessoa', async () => {
+  const input = {
+    name: 'Paciente Aplicativo',
+    document: 'APP-CADASTRO',
+    birth_date: '2000-01-01',
+    neighborhood: 'Centro',
+    email: 'app@ubs.demo',
+    password: 'Senha@1234',
+  };
+  assert.equal(
+    (await mobile('auth/register', { method: 'POST', body: { ...input, role: 'COORDENACAO' } }))
+      .status,
+    400,
+  );
+  assert.equal(
+    (await mobile('auth/register', { method: 'POST', body: { ...input, area: 'Área 01' } })).status,
+    400,
+  );
+  const result = await mobile('auth/register', { method: 'POST', body: input });
+  assert.equal(result.status, 201);
+  apiSchemas.RegistrationResponse.parse(result.body);
+  const created = await user(result.body.data.id);
+  assert.equal(created.role, 'PACIENTE');
+  assert.equal(created.area, 'A definir');
+  assert.equal((await mobile('auth/register', { method: 'POST', body: input })).status, 409);
+  assert.equal(
+    (
+      await mobile('auth/login', {
+        method: 'POST',
+        body: { email: input.email, password: input.password },
+      })
+    ).status,
+    200,
+  );
+});
+test('API móvel: edição parcial preserva vínculo territorial, sincroniza nome e rejeita campos extras', async () => {
+  const token = await mobileLogin();
+  for (const body of [
+    { area: 'Área 02' },
+    { acs_id: 'u-acs2' },
+    { patient_id: 'p-2' },
+    { role: 'COORDENACAO' },
+    { conditions: 'Livre' },
+    {},
+  ]) {
+    assert.equal((await mobile('me', { token, method: 'PATCH', body })).status, 400);
+  }
+  const response = await mobile('me', {
+    token,
+    method: 'PATCH',
+    body: { name: 'Maria Atualizada', phone: '123456789' },
+  });
+  assert.equal(response.status, 200);
+  apiSchemas.MeResponse.parse(response.body);
+  assert.equal(response.body.data.user.name, 'Maria Atualizada');
+  assert.equal(response.body.data.patient.area, 'Área 01');
+  assert.equal((await user('u-paciente')).name, 'Maria Atualizada');
+  const nameOnly = await mobile('me', { token, method: 'PATCH', body: { name: 'Maria Outra' } });
+  assert.equal(nameOnly.body.data.patient.phone, '123456789');
+  assert.equal(
+    (await one<Patient>('SELECT * FROM patients WHERE id=?', 'p-2'))?.phone === '123456789',
+    false,
+  );
+});
+test('API móvel: consultas privadas omitem anotações internas e registros de outros pacientes', async () => {
+  const token = await mobileLogin();
+  const paths = ['tickets', 'me/vaccinations', 'me/pending-vaccinations', 'me/visits'];
+  for (const path of paths) {
+    const response = await mobile(path, { token });
+    assert.equal(response.status, 200, path);
+    const text = JSON.stringify(response.body);
+    for (const field of [
+      'password_hash',
+      'token_hash',
+      'patient_id',
+      'conditions',
+      'result',
+      'pending',
+      'note',
+      'user_id',
+    ])
+      assert(!text.includes(`"${field}"`), `${path}: ${field}`);
+    assert.equal((await mobile(`${path}?patient_id=p-2`, { token })).status, 400);
+  }
+  const doses = await mobile('me/vaccinations', { token });
+  apiSchemas.VaccinationsResponse.parse(doses.body);
+  const expected = await all<{ id: string }>('SELECT id FROM doses WHERE patient_id=?', 'p-1');
+  assert.deepEqual(
+    doses.body.data.map((r: { id: string }) => r.id).sort(),
+    expected.map((r) => r.id).sort(),
+  );
+  apiSchemas.PendingVaccinationsResponse.parse(
+    (await mobile('me/pending-vaccinations', { token })).body,
+  );
+  apiSchemas.VisitsResponse.parse((await mobile('me/visits', { token })).body);
+  assert.equal((await mobile('tickets/t-2', { token })).status, 404);
+  assert.equal(
+    (await mobile('tickets/t-2/cancel', { token, method: 'POST', body: {} })).status,
+    404,
+  );
+  assert.equal((await mobile('tickets/inexistente', { token })).status, 404);
+});
+test('API móvel: paginação é limitada, filtros são validados e vagas iniciadas/lotadas ficam ocultas', async () => {
+  const token = await mobileLogin();
+  await run('UPDATE slots SET capacity=1 WHERE id=?', 'slot-1-1');
+  const response = await mobile(
+    `slots?date_from=${dayAfter(1)}&date_to=${dayAfter(1)}&page_size=1`,
+    { token },
+  );
+  assert.equal(response.status, 200);
+  apiSchemas.SlotsResponse.parse(response.body);
+  assert.equal(response.body.data.length, 1);
+  assert(
+    response.body.data.every(
+      (s: { id: string; available: number; date: string }) =>
+        s.id !== 'slot-1-1' && s.available > 0 && s.date === dayAfter(1),
+    ),
+  );
+  const first = await mobile('services?page_size=1', { token });
+  const second = await mobile('services?page_size=1&page=2', { token });
+  assert(first.body.pagination.has_more);
+  assert.notEqual(first.body.data[0].id, second.body.data[0].id);
+  for (const query of [
+    'page=0',
+    'page=1&page=2',
+    'page_size=101',
+    'page_size=1.5',
+    'other=1',
+    'date_from=2026-02-30',
+    'date_from=2026-02-02&date_to=2026-02-01',
+  ]) {
+    assert.equal((await mobile(`slots?${query}`, { token })).status, 400, query);
+  }
+});
+test('API móvel: reenvios concorrentes da reserva retornam uma ficha e conflito de chave não grava', async () => {
+  const token = await mobileLogin();
+  const key = crypto.randomUUID();
+  const request = {
+    token,
+    method: 'POST',
+    headers: { 'Idempotency-Key': key },
+    body: { slot_id: 'slot-1-2' },
+  };
+  const before = await count('tickets');
+  const responses = await Promise.all([
+    mobile('reservations', request),
+    mobile('reservations', request),
+  ]);
+  assert(responses.every((r) => r.status === 201));
+  assert.equal(responses[0].body.data.id, responses[1].body.data.id);
+  assert.equal(await count('tickets'), before + 1);
+  apiSchemas.TicketResponse.parse(responses[0].body);
+  assert.equal(
+    (await mobile('reservations', { ...request, body: { slot_id: 'slot-2-2' } })).status,
+    409,
+  );
+  assert.equal(
+    (await mobile('reservations', { ...request, body: { slot_id: 'slot-1-2', patient_id: 'p-2' } }))
+      .status,
+    400,
+  );
+  assert.equal((await mobile('reservations', { ...request, headers: {} })).status, 400);
+  const id = responses[0].body.data.id;
+  assert.equal(
+    (await mobile(`tickets/${id}/cancel`, { token, method: 'POST', body: {} })).body.data.status,
+    'CANCELADA',
+  );
+  assert.equal(
+    (await mobile(`tickets/${id}/cancel`, { token, method: 'POST', body: {} })).status,
+    200,
+  );
+  assert.equal((await mobile('reservations', request)).body.data.status, 'CANCELADA');
+  assert.equal(await count('tickets'), before + 1);
+});
+test('API móvel: cancelamento continua respeitando horário e fluxo da equipe', async () => {
+  const token = await mobileLogin();
+  const reserved = await reserve(await user('u-paciente'), {
+    patient_id: 'p-1',
+    slot_id: 'slot-1-2',
+  });
+  await run('UPDATE slots SET date=? WHERE id=?', dayAfter(-1), 'slot-1-2');
+  const response = await mobile(`tickets/${reserved.id}/cancel`, {
+    token,
+    method: 'POST',
+    body: {},
+  });
+  assert.equal(response.status, 400);
+  assert.equal((await mobile(`tickets/${reserved.id}`, { token })).body.data.can_cancel, false);
+  assert.equal(
+    (await mobile('tickets/t-1/cancel', { token, method: 'POST', body: {} })).status,
+    400,
+  );
+});
+test('API móvel: erros HTTP consistentes, sem cache, sem cookies ou CORS permissivo', async () => {
+  const token = await mobileLogin();
+  const invalidJson = await mobile('auth/login', { method: 'POST', raw: '{invalid' });
+  assert.equal(invalidJson.status, 400);
+  apiSchemas.ErrorResponse.parse(invalidJson.body);
+  assert.equal(
+    (
+      await mobile('auth/login', {
+        method: 'POST',
+        raw: '{}',
+        headers: { 'Content-Type': 'text/plain' },
+      })
+    ).status,
+    415,
+  );
+  assert.equal(
+    (await mobile('auth/login', { method: 'POST', raw: 'x'.repeat(65537) })).status,
+    413,
+  );
+  assert.equal(
+    (await mobile('me', { token, headers: { Origin: 'https://evil.example' } })).status,
+    403,
+  );
+  const method = await mobile('me', { token, method: 'DELETE' });
+  assert.equal(method.status, 405);
+  assert.equal(method.headers.get('allow'), 'GET, PATCH');
+  assert.equal((await mobile('inventory', { token })).status, 404);
+  const result = await mobile('me', { token });
+  assert.equal(result.headers.get('cache-control'), 'no-store');
+  assert.equal(result.headers.get('set-cookie'), null);
+  assert.equal(result.headers.get('access-control-allow-origin'), null);
+});
+test('API móvel: limite de login é compartilhado com o site', async () => {
+  for (let i = 0; i < 10; i++)
+    assert.equal(
+      (
+        await mobile('auth/login', {
+          method: 'POST',
+          body: { email: 'paciente@ubs.demo', password: 'errada' },
+        })
+      ).status,
+      401,
+    );
+  assert.equal(
+    (
+      await mobile('auth/login', {
+        method: 'POST',
+        body: { email: 'paciente@ubs.demo', password: 'Demo@12345' },
+      })
+    ).status,
+    429,
+  );
+  await assert.rejects(() => login('paciente@ubs.demo', 'Demo@12345'), /Muitas tentativas/);
+});
+test('API móvel: OpenAPI público usa Bearer e descreve todas as operações', async () => {
+  const result = await mobile('openapi.json');
+  assert.equal(result.status, 200);
+  const spec = openApiDocument();
+  assert.equal(spec.openapi, '3.1.0');
+  assert.equal(spec.components.securitySchemes.patientBearer.scheme, 'bearer');
+  assert.equal(
+    Object.values(spec.paths).reduce((sum, path) => sum + Object.keys(path).length, 0),
+    14,
+  );
+  assert(!JSON.stringify(spec).includes('TURSO_AUTH_TOKEN='));
 });

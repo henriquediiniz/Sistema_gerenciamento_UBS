@@ -6,9 +6,26 @@ import { audit, id, now, one, run, transaction } from '../db';
 import { authorize, visiblePatient } from '../security';
 export async function reserve(user: User, input: unknown) {
   authorize(user, ['COORDENACAO', 'RECEPCAO', 'PACIENTE']);
-  const data = z.object({ patient_id: text, slot_id: text }).parse(input);
+  const data = z
+    .object({ patient_id: text, slot_id: text, idempotency_key: z.uuid().optional() })
+    .parse(input);
   await visiblePatient(user, data.patient_id);
   return await transaction(async () => {
+    if (data.idempotency_key) {
+      const previous = await one<{ patient_id: string; slot_id: string; ticket_id: string }>(
+        'SELECT patient_id,slot_id,ticket_id FROM reservation_requests WHERE user_id=? AND request_key=?',
+        user.id,
+        data.idempotency_key,
+      );
+      if (previous) {
+        ensure(
+          previous.patient_id === data.patient_id && previous.slot_id === data.slot_id,
+          'Esta chave já foi utilizada para outra reserva.',
+          409,
+        );
+        return { id: previous.ticket_id };
+      }
+    }
     const slot = await one<Slot>('SELECT * FROM slots WHERE id=?', data.slot_id);
     ensure(slot, 'Período não encontrado.', 404);
     ensure(
@@ -39,6 +56,15 @@ export async function reserve(user: User, input: unknown) {
       now(),
     );
     await audit(user.id, 'Ficha emitida', key);
+    if (data.idempotency_key)
+      await run(
+        'INSERT INTO reservation_requests VALUES(?,?,?,?,?)',
+        user.id,
+        data.idempotency_key,
+        data.patient_id,
+        data.slot_id,
+        key,
+      );
     return { id: key };
   });
 }
@@ -66,6 +92,7 @@ export async function ticketAction(user: User, input: unknown) {
     let priority = ticket.priority;
     if (data.action === 'cancelar') {
       authorize(user, ['COORDENACAO', 'RECEPCAO', 'PACIENTE']);
+      if (status === 'CANCELADA') return { id: ticket.id };
       ensure(status === 'RESERVADA', 'Somente fichas reservadas podem ser canceladas.');
       ensure(
         periodStart(ticket.date, ticket.starts_at) > Date.now(),
